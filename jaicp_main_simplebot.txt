@@ -1,0 +1,108 @@
+require: slotfilling/slotFilling.sc
+  module = sys.zb-common
+  
+  
+require: patterns.sc
+
+init:
+    bind("postProcess", function($context) {
+        //log("/// my log: " + toPrettyString($context));
+        $context.session.lastState = $context.currentState;
+    });
+    
+theme: /
+
+    # state: Start
+    #     q!: $regex</start>
+    #     a: Начнём.
+        
+    state: Start
+        q!: $regex</start>
+        a: Я спанч-боб! (направляю в askname)
+        a: Как вас зовут?
+        
+        script:
+            $session.counter = 0;
+        # go!: /AskName
+        # go!: /Resistance1
+        #go!: /emailUser
+        event!: noMatch || toState = "./CatchAll"
+        
+    state: AskName || modal = true
+        q!: * @pymorphy.name *
+        script:
+            $session.userName = $parseTree["_pymorphy.name"];
+            var answer = "Добрый день, " + $session.userName + "! Рад знакомству!";
+            $reactions.answer(answer);
+        go!: /AskProblem
+        
+    state: AskProblem
+        q: *что (хотели|нужно|надо)* 
+        a: Вы хотели записаться на пробный урок! Запишемся сейчас?
+        # go!: /Resistance1
+        
+
+    state: HandleResistance
+        q!: ( $no_time | $know_all | $no_need | $no_time1 | $no_comp | $rejection )
+        go!: /HandleResistance/NoTime
+        
+        state: NoTime
+            q: $no_time
+            script:
+                $session.counter++;
+                if ($session.counter === 5) {$reactions.transition("/Bye");}
+            script:
+                var replies = [
+                "Это не займет много времени 🙂",
+                "Займёт всего пару минут!",
+                "Совсем чуть-чуть времени, обещаю!"];
+                var reply = replies[Math.floor(Math.random() * replies.length)];
+                $reactions.answer(reply);
+        
+        state:KnowAll
+            q: $know_all
+            script:
+                $session.counter++;
+                if ($session.counter === 5) {$reactions.transition("/Bye");}
+            script:
+                $reactions.answer("Прекрасно, но давайте запишемся :) Какой у вас номер телефона?")
+        
+        state:NoNeed
+            q: $no_need
+            script:
+                $session.counter++;
+                if ($session.counter === 5) {$reactions.transition("/Bye");}
+            script:
+                $reactions.answer("Жизнь одна! Не откладывай на потом то, что можно сделать сейчас!")
+
+        state:NoComp
+            q!: $no_comp
+            script:
+                $session.counter++;
+                if ($session.counter === 5) {$reactions.transition("/Bye");}
+            script:
+                $reactions.answer("Пробовать новое всегда полезно!")
+ 
+
+    state: Bye
+        q: * (пока|до свидания|выход) *
+        random:
+            a: мы все равно будем вас ждать!
+            a: до встречи!
+        
+        
+
+    state: Hello
+        intent!: /привет
+        a: Привет привет
+
+
+    state: NoMatch
+        event!: noMatch
+        a: Я не понял. Вы сказали: {{$request.query}}
+
+    state: Match
+        event!: match
+        a: {{$context.intent.answer}}
+        
+
